@@ -1,0 +1,103 @@
+0、关闭防火墙
+	systemctl status firewalld查看当前防火墙状态。
+	systemctl stop firewalld关闭当前防火墙。 
+	systemctl disable firewalld开机防火墙不启动。
+
+1、安装redis，安装包tar，解压tar -zxvf redis.....tar
+2、进入目录：redis  make && make install
+3、启动redis redis-server redis.conf
+
+4、搭建集群
+	1、安装ruby环境 使用包ruby-2.3.7.tar.gz 解压  tar -zxvf ruby-2.3.7.tar.gz
+	2、进入ruby目录，执行 ./configure  编译环境 编译并安装make && make install
+	3、执行 vim /etc/profile  
+		添加内容 ：export PATH=$PATH:/usr/local/redis/ruby-2.3.7/bin
+		保存生效  source /etc/profile
+	4、检测ruby环境安装是否成功
+		ruby -v
+			ruby 2.3.7p456 (2018-03-28 revision 63024) [x86_64-linux]
+	
+	5、安装gem  需要包：redis-3.0.0.gem
+		命令：gem install redis-3.0.0.gem
+		安装命令报错：
+			缺失zlib：
+			yum -y install zlib-devel
+			cd ext/zlib/
+			ruby ./extconf.rb
+			make && make install
+			缺失opensll
+			yum install openssl-devel -y
+			cd ruby-2.3.7
+			cd ext/openssl/
+			ruby ./extconf.rb
+			make && make install
+			make报错：vim Makefile  在前面添加：top_srcdir = ../..
+			make && make install
+			
+			gem install redis-3.0.0.gem
+	6、安装redis与ruby连接接口：gem install redis
+	
+	7、创建集群目录：redis-cluster，并在其下创建：mkdir 7000 7001 7002 7003 7004 7005
+	
+	8、将redis主目录下的redis.conf 复制到上述目录中：，并且进行改名
+		cp /usr/local/redis/redis-5.0.8/redis.conf 7000/
+		cp /usr/local/redis/redis-5.0.8/redis.conf 7001/
+		cp /usr/local/redis/redis-5.0.8/redis.conf 7002/
+		cp /usr/local/redis/redis-5.0.8/redis.conf 7003/
+		cp /usr/local/redis/redis-5.0.8/redis.conf 7004/
+		cp /usr/local/redis/redis-5.0.8/redis.conf 7005/
+		
+		mv redis.conf redis_7000.conf
+		mv redis.conf redis_7001.conf
+		mv redis.conf redis_7002.conf
+		mv redis.conf redis_7003.conf
+		mv redis.conf redis_7004.conf
+		mv redis.conf redis_7005.conf
+		
+	9、修改配置文件：
+		修改7001的配置文件，如下：其他依次类推，修改端口，文件路径名称
+		vim redis_7001.conf
+			bind 192.168.222.141
+			port 7001
+			daemonize yes
+			logfile "/usr/local/redis/redis-5.0.8/redis-cluster/7001/redis_7001.log"
+			daemonize yes
+			pidfile /var/run/redis_7001.pid
+			appendonly yes
+			cluster-enabled yes
+			cluster-config-file nodes_7001.conf
+			cluster-node-timeout 15000
+			
+	10、开启集群：./redis-trib.rb create --replicas 1 192.168.222.141:7000 192.168.222.141:7001 192.168.222.141:7002 192.168.222.141:7003 192.168.222.141:7004 192.168.222.141:7005
+		ruby redis-trib.rb create --replicas 1 192.168.222.141:7000 192.168.222.141:7001 192.168.222.141:7002 192.168.222.141:7003 192.168.222.141:7004 192.168.222.141:7005
+		redis-cli --cluster create 192.168.222.141:7000 192.168.222.141:7001 192.168.222.141:7002 192.168.222.141:7003 192.168.222.141:7004 192.168.222.141:7005 --cluster-replicas 1
+		
+		
+		redis-cli --cluster create 192.168.222.143:6380 192.168.222.142:6382 192.168.222.139:6384 192.168.222.143:6381 192.168.222.142:6383 192.168.222.139:6385 --cluster-replicas 1
+		
+		redis-cli --cluster create 192.168.222.143:6380 192.168.222.143:6381 192.168.222.142:6382 192.168.222.142:6383 192.168.222.139:6384 192.168.222.139:6385 --cluster-replicas 1
+		
+		M: cc957bda36d8ceed89e2e5a3d49f9c357684e34f 192.168.222.141:7000
+		   slots:[0-5460] (5461 slots) master
+		M: 31e699dfb1df035e64db98815fbf426afdce0399 192.168.222.141:7001
+		   slots:[5461-10922] (5462 slots) master
+		M: 23334a142bf20fe70f3c8fa93a2196c364ca2904 192.168.222.141:7002
+		   slots:[10923-16383] (5461 slots) master
+		S: b03cec0e8bce059f52b66aead6cfa9dac63d7214 192.168.222.141:7003
+		   replicates cc957bda36d8ceed89e2e5a3d49f9c357684e34f
+		S: eb3200803d419789ffa83a1143addf36230501fd 192.168.222.141:7004
+		   replicates 31e699dfb1df035e64db98815fbf426afdce0399
+		S: e5e590a9c418497fa12372403f64c5dd27658674 192.168.222.141:7005
+		   replicates 23334a142bf20fe70f3c8fa93a2196c364ca2904
+
+	11、开始测试：
+		./redis-cli -c -h 192.168.222.141 -p 7004
+		get name(在7004处获取name为key的数据)
+		Redirected to slot [5798] located at 192.168.222.141:7001(自动跳转到7001端口，获取数据)
+		name
+		
+		 set deng haung
+		 Redirected to slot [6108] located at 192.168.222.141:7001
+		 OK
+		 
+		 
